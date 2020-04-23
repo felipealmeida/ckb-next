@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "kbmanager.h"
 #include <ckbnextconfig.h>
 #include <QApplication>
 #include <QDateTime>
@@ -42,7 +43,8 @@ enum CommandLineParseResults {
  *
  * @return  integer, representing the requested argument
  */
-CommandLineParseResults parseCommandLine(QCommandLineParser &parser, QString *errorMessage) {
+CommandLineParseResults parseCommandLine(QCommandLineParser &parser, QString *errorMessage
+                                         , int argc, char* argv[]) {
     // setup parser to interpret -abc as -a -b -c
     parser.setSingleDashWordOptionMode(QCommandLineParser::ParseAsCompactedShortOptions);
 
@@ -67,8 +69,12 @@ CommandLineParseResults parseCommandLine(QCommandLineParser &parser, QString *er
     const QCommandLineOption switchToModeOption(QStringList() << "m" << "mode", QObject::tr("Switches to the mode either in the current profile, or in the one specified by --profile"), "mode-name");
     parser.addOption(switchToModeOption);
 
+    QStringList opts;
+    for (int i = 0; i != argc; ++i)
+      opts << QString(argv[i]);
+    
     /* parse arguments */
-    if (!parser.parse(QCoreApplication::arguments())) {
+    if (!parser.parse(opts)) {
         // set error, if there already are some
         *errorMessage = parser.errorText();
         return CommandLineError;
@@ -203,41 +209,14 @@ int main(int argc, char *argv[]){
     }
 #endif
 
-    // Setup main application
-    QApplication a(argc, argv);
-
-    // Setup translations
-    QTranslator translator;
-    if(translator.load(QLocale(), "", "", ":/translations"))
-        a.installTranslator(&translator);
-
-    // Setup names and versions
-    QCoreApplication::setOrganizationName("ckb-next");
-    QCoreApplication::setApplicationVersion(CKB_NEXT_VERSION_STR);
-    QCoreApplication::setApplicationName("ckb-next");
-
     // Setup argument parser
     QCommandLineParser parser;
     QString errorMessage;
     parser.setApplicationDescription("Open Source Corsair Input Device Driver for Linux and OSX.");
     bool background = false;
 
-    // Although the daemon runs as root, the GUI needn't and shouldn't be, as it has the potential to corrupt settings data.
-    if(getuid() == 0){
-        printf("The ckb-next GUI should not be run as root.\n");
-        return 0;
-    }
-
-    // Seed the RNG for UsbIds
-    qsrand(QDateTime::currentMSecsSinceEpoch());
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 3, 0)
-    // Enable HiDPI support
-    qApp->setAttribute(Qt::AA_UseHighDpiPixmaps);
-#endif
-
     // Parse arguments
-    switch (parseCommandLine(parser, &errorMessage)) {
+    switch (parseCommandLine(parser, &errorMessage, argc, argv)) {
     case CommandLineOK:
         // If launched with no argument
         break;
@@ -291,6 +270,34 @@ int main(int argc, char *argv[]){
         break;
     }
 
+    // Although the daemon runs as root, the GUI needn't and shouldn't be, as it has the potential to corrupt settings data.
+    if(getuid() == 0){
+        printf("The ckb-next GUI should not be run as root.\n");
+        return 0;
+    }
+
+    // Seed the RNG for UsbIds
+    qsrand(QDateTime::currentMSecsSinceEpoch());
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 3, 0)
+    // Enable HiDPI support
+    qApp->setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+
+    // Setup main applicationç
+    std::unique_ptr<QCoreApplication> a
+      (background ? new QCoreApplication(argc, argv) : new QApplication(argc, argv));
+
+    // Setup translations
+    QTranslator translator;
+    if(translator.load(QLocale(), "", "", ":/translations"))
+        a->installTranslator(&translator);
+
+    // Setup names and versions
+    QCoreApplication::setOrganizationName("ckb-next");
+    QCoreApplication::setApplicationVersion(CKB_NEXT_VERSION_STR);
+    QCoreApplication::setApplicationName("ckb-next");
+
     bool startDelay = false;
     {
         QSettings tmp;
@@ -335,9 +342,19 @@ int main(int argc, char *argv[]){
     if(QtCreator)
         QThread::sleep(1);
 
-    MainWindow w;
-    if(!background)
-        w.show();
-
-    return a.exec();
+    
+    std::unique_ptr<MainWindow> w;
+    if (background)
+    {
+      AnimScript::scan();
+      KbManager::init(CKB_NEXT_VERSION_STR);
+      Kb::frameRate (30);
+    }
+    else
+    {
+      w.reset (new MainWindow);
+      w->show();
+    }
+      
+    return a->exec();
 }

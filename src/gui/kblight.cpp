@@ -447,7 +447,7 @@ void KbLight::load(CkbSettings& settings){
         }
     }
     emit didLoad();
-    map(currentMap);
+    map(currentMap.count() == 0 ? _map : currentMap);
 }
 
 void KbLight::save(CkbSettings& settings){
@@ -544,7 +544,7 @@ void KbLight::lightImport(QSettings* settings){
         settings->endGroup();
     }
     emit didLoad();
-    map(currentMap);
+    map(currentMap.count() == 0 ? _map : currentMap);
     settings->endGroup();
 }
 
