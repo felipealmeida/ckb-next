@@ -221,16 +221,6 @@ QSettings::setDefaultFormat(CkbSettings::Format);
         QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
-    // Setup main application
-    std::unique_ptr<QCoreApplication> app
-      (background ? new QCoreApplication(argc, argv) : new QApplication(argc, argv));
-    QCoreApplication& a = *app;
-
-    // Setup translations
-    QTranslator translator;
-    if(translator.load(QLocale(), "", "", ":/translations"))
-        a.installTranslator(&translator);
-
     const quint16 currentSettingsVersion = tmpSettings->value("Program/SettingsVersion", 0).toInt();
     if(currentSettingsVersion && currentSettingsVersion > CKB_NEXT_SETTINGS_VER){
         if(QMessageBox::warning(nullptr, QObject::tr("Downgrade Warning"),
@@ -330,6 +320,16 @@ QSettings::setDefaultFormat(CkbSettings::Format);
     delete tmpSettings;
     tmpSettings = nullptr;
 
+    // Setup main application
+    std::unique_ptr<QCoreApplication> app
+      (background ? new QCoreApplication(argc, argv) : new QApplication(argc, argv));
+    QCoreApplication& a = *app;
+
+    // Setup translations
+    QTranslator translator;
+    if(translator.load(QLocale(), "", "", ":/translations"))
+        a.installTranslator(&translator);
+    
     if(startDelay)
         QThread::sleep(5);
 
